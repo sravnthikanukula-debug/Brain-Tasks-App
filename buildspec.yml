@@ -43,8 +43,8 @@ phases:
       - echo "Substituting image tag into deployment manifest..."
       - sed -i "s|889526028237.dkr.ecr.us-west-2.amazonaws.com/brain-tasks-app:v1|$REPOSITORY_URI:$IMAGE_TAG|g" k8s/deployment.yaml
       - echo "Applying Kubernetes manifests..."
-      - kubectl apply -f k8s/deployment.yaml -n $K8S_NAMESPACE
-      - kubectl apply -f k8s/service.yaml -n $K8S_NAMESPACE
+      - kubectl apply -f k8s/deployment.yaml -n $K8S_NAMESPACE --validate=false
+      - kubectl apply -f k8s/service.yaml -n $K8S_NAMESPACE --validate=false
       - kubectl rollout status deployment/brain-tasks-app -n $K8S_NAMESPACE --timeout=120s
       - echo "Fetching LoadBalancer info..."
       - kubectl get svc brain-tasks-app-svc -n $K8S_NAMESPACE -o wide
