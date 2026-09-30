@@ -1,0 +1,52 @@
+version: 0.2
+
+env:
+  variables:
+    EKS_CLUSTER_NAME: "brain-tasks-cluster"
+    IMAGE_REPO_NAME: "brain-tasks-app"
+    K8S_NAMESPACE: "default"
+
+phases:
+  install:
+    runtime-versions:
+      docker: 20
+    commands:
+      - echo "Installing kubectl..."
+      - curl -LO "https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl"
+      - chmod +x ./kubectl && mv ./kubectl /usr/local/bin/kubectl
+      - kubectl version --client
+
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws --version
+      - AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-8)
+      - echo "Updating kubeconfig for EKS cluster $EKS_CLUSTER_NAME..."
+      - aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_DEFAULT_REGION
+
+  build:
+    commands:
+      - echo "Building Docker image..."
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG -t $REPOSITORY_URI:latest .
+
+  post_build:
+    commands:
+      - echo "Pushing Docker image to ECR..."
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - docker push $REPOSITORY_URI:latest
+      - echo "Substituting image tag into deployment manifest..."
+      - sed -i "s|889526028237.dkr.ecr.us-west-2.amazonaws.com/brain-tasks-app:v1|$REPOSITORY_URI:$IMAGE_TAG|g" k8s/deployment.yaml
+      - echo "Applying Kubernetes manifests..."
+      - kubectl apply -f k8s/deployment.yaml -n $K8S_NAMESPACE
+      - kubectl apply -f k8s/service.yaml -n $K8S_NAMESPACE
+      - kubectl rollout status deployment/brain-tasks-app -n $K8S_NAMESPACE --timeout=120s
+      - echo "Fetching LoadBalancer info..."
+      - kubectl get svc brain-tasks-app-svc -n $K8S_NAMESPACE -o wide
+
+artifacts:
+  files:
+    - k8s/deployment.yaml
+    - k8s/service.yaml
