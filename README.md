@@ -90,3 +90,9 @@ No build process is required
 
 No package.json is needed
 # Deployed via CI/CD pipeline
+
+
+## Screenshots
+
+All setup and deployment screenshots are available in this document:
+https://docs.google.com/document/d/1BuUDhbMZcP9mrQEoBKaTV3AxnCuKhw2B2VlfDVE5PIs/view
